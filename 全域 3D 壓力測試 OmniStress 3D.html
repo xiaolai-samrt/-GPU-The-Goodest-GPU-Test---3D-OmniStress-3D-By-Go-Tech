@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>全域 3D 壓力測試 OmniStress 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#06080c;--ink:#e8f1f7;--mute:#7d8b9a;--line:rgba(255,255,255,.13);--a:#6fe3ff;--b:#8a7dff;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:400 14px/1.5 "Noto Sans TC",system-ui,sans-serif;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:2px solid var(--a);outline-offset:3px}
+
+/* ---------- intro ---------- */
+#intro{position:fixed;inset:0;display:grid;place-items:center;z-index:10;background:radial-gradient(60% 50% at 50% 45%,#0c1420 0,var(--bg) 100%)}
+#intro::before{content:"";position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:56px 56px;opacity:.22;-webkit-mask:radial-gradient(circle at 50% 48%,#000 0,transparent 62%);mask:radial-gradient(circle at 50% 48%,#000 0,transparent 62%)}
+.center{position:relative;display:flex;flex-direction:column;align-items:center;gap:22px;padding:24px;text-align:center}
+h1{margin:0;font:300 clamp(26px,5vw,40px)/1.2 Sora,"Noto Sans TC",sans-serif;letter-spacing:.08em;text-wrap:balance}
+h1 .brand{display:block;margin-top:10px;font:400 clamp(15px,2.6vw,20px)/1.2 Sora,sans-serif;letter-spacing:.34em;padding-left:.34em;color:var(--a)}
+.sub{margin:0;color:var(--mute);max-width:42ch;font-size:15px;letter-spacing:.04em}
+.start{position:relative;width:176px;height:176px;margin:14px 0 4px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.03);display:grid;place-items:center;transition:transform .3s,box-shadow .3s,border-color .3s}
+.start::before{content:"";position:absolute;inset:-1px;border-radius:50%;padding:1px;background:conic-gradient(from 0deg,transparent 0 55%,var(--a) 85%,transparent 100%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);animation:spin 4s linear infinite}
+.start:hover{transform:scale(1.04);border-color:rgba(111,227,255,.5);box-shadow:0 0 60px -10px rgba(111,227,255,.45),inset 0 0 40px -18px var(--a)}
+.start svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);opacity:0;transition:opacity .4s}
+.start circle{fill:none;stroke-width:1.4}
+.start .trk{stroke:var(--line)}
+.start .prg{stroke:var(--a);stroke-linecap:round;stroke-dasharray:301.6;stroke-dashoffset:301.6;filter:drop-shadow(0 0 3px var(--a))}
+.lbl{font:400 18px Sora,"Noto Sans TC",sans-serif;letter-spacing:.2em;padding-left:.2em;transition:opacity .3s}
+.pct{position:absolute;font:300 34px Sora,sans-serif;font-variant-numeric:tabular-nums;opacity:0;transition:opacity .3s}
+body.launch .start{pointer-events:none;transform:scale(1.08);box-shadow:0 0 80px -8px rgba(111,227,255,.55)}
+body.launch .start::before{animation-duration:.9s}
+body.launch .start svg,body.launch .pct{opacity:1}
+body.launch .lbl{opacity:0}
+.stage{height:20px;color:var(--mute);font-size:13px;letter-spacing:.12em}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:rgba(255,255,255,.03)}
+.seg button{border:0;background:none;padding:5px 14px;border-radius:999px;color:var(--mute);font-size:13px;transition:background .2s,color .2s}
+.seg button[aria-pressed=true]{background:rgba(111,227,255,.14);color:var(--a)}
+body.launch .seg{opacity:.35;pointer-events:none}
+#last{margin:0;min-height:21px;color:var(--mute);font-size:13px;font-variant-numeric:tabular-nums}
+
+/* ---------- render ---------- */
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity .6s}
+body.run #gl{opacity:1}
+body.run #intro{visibility:hidden}
+#flash{position:fixed;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;background:radial-gradient(circle,#fff 0,var(--a) 35%,transparent 70%);transform:scale(0);opacity:0;pointer-events:none;z-index:30}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .8s .3s;padding:max(16px,env(safe-area-inset-top,0px)) 16px 16px;display:flex;flex-direction:column;justify-content:space-between}
+body.run #hud{opacity:1}
+.panel{width:min(300px,100%);padding:16px 18px 12px;border:1px solid var(--line);border-radius:14px;background:rgba(6,8,12,.55);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.fps{display:flex;align-items:baseline;gap:8px}
+.fps b{font:300 64px/1 Sora,sans-serif;font-variant-numeric:tabular-nums;min-width:3ch}
+.fps span{color:var(--a);font:400 14px Sora,sans-serif;letter-spacing:.1em}
+dl{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0 8px}
+dt{color:var(--mute);font-size:11px}
+dd{margin:0;font:400 14px Sora,sans-serif;font-variant-numeric:tabular-nums}
+#graph{display:block;width:100%;height:56px}
+.bar{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;color:var(--mute);font-size:12px}
+.info{display:flex;flex-wrap:wrap;gap:4px 18px;max-width:100%}
+.info span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
+#time{font-variant-numeric:tabular-nums}
+.ctl{display:flex;gap:8px;align-items:center;pointer-events:auto}
+.ctl .seg{background:rgba(6,8,12,.55);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.btn{border:1px solid var(--line);background:rgba(6,8,12,.55);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-radius:999px;padding:7px 16px;font-size:13px;transition:border-color .2s,color .2s}
+.btn:hover{border-color:rgba(111,227,255,.6);color:var(--a)}
+#stop:hover{border-color:#ff6b7a;color:#ff6b7a}
+
+#cellfx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.credit{position:fixed;left:0;right:0;bottom:max(18px,env(safe-area-inset-bottom,0px));text-align:center;color:var(--mute);font-size:13px;letter-spacing:.06em}
+.credit a,.info a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line);transition:color .2s,border-color .2s}
+.credit a:hover,.info a:hover{color:var(--a);border-color:var(--a)}
+.credit a:focus-visible,.info a:focus-visible{outline:2px solid var(--a);outline-offset:3px;border-radius:2px}
+.info a{pointer-events:auto}
+.lang{position:fixed;top:max(14px,env(safe-area-inset-top,0px));right:16px;z-index:40}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.start::before{animation:none}}
+@media (max-width:520px){.panel{width:100%}.fps b{font-size:52px}}
+</style>
+</head>
+<body>
+
+<section id="intro">
+  <canvas id="cellfx"></canvas>
+  <div class="center">
+    <h1><span data-i="title">全域 3D 壓力測試</span><span class="brand">OmniStress 3D</span></h1>
+    <p class="sub" data-i="sub">新一代 顯示卡壓力與渲染測試</p>
+    <button class="start" id="start" aria-label="開始測試">
+      <svg viewBox="0 0 100 100" aria-hidden="true"><circle class="trk" cx="50" cy="50" r="48"/><circle class="prg" id="prg" cx="50" cy="50" r="48"/></svg>
+      <span class="lbl" data-i="start">開始測試</span><span class="pct" id="pct">0%</span>
+    </button>
+    <div class="stage" id="stage" aria-live="polite">準備就緒</div>
+    <div class="seg" id="segIntro" role="group" aria-label="負載強度"></div>
+    <p id="last"></p>
+  </div>
+  <div class="credit"><span data-i="by">製作：</span><a href="https://www.youtube.com/@Go-tech365" target="_blank" rel="noopener">搞科技Go Tech</a>
+  </div>
+</section>
+
+<canvas id="gl"></canvas>
+<button class="btn lang" id="lang" aria-label="Language">EN</button>
+<div id="flash"></div>
+
+<div id="hud">
+  <div class="panel">
+    <div class="fps"><b id="fps">0</b><span>FPS</span></div>
+    <dl>
+      <div><dt data-i="ms">影格時間</dt><dd id="ms">–</dd></div>
+      <div><dt data-i="avg">平均</dt><dd id="avg">–</dd></div>
+      <div><dt data-i="min">最低</dt><dd id="min">–</dd></div>
+      <div><dt data-i="max">最高</dt><dd id="max">–</dd></div>
+    </dl>
+    <canvas id="graph" width="520" height="112"></canvas>
+  </div>
+  <div class="bar">
+    <div class="info"><span id="gpu">GPU</span><span id="resV"></span><span id="time">00:00</span><span><span data-i="by">製作：</span><a href="https://www.youtube.com/@Go-tech365" target="_blank" rel="noopener">搞科技Go Tech</a></span></div>
+    <div class="ctl">
+      <div class="seg" id="segHud" role="group" aria-label="負載強度"></div>
+      <button class="btn" id="fsBtn" data-i="fs">全螢幕</button>
+      <button class="btn" id="stop" data-i="stop">停止</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const LV = [
+  {k:'lv0', s:.75, l:32},
+  {k:'lv1', s:1,   l:64},
+  {k:'lv2', s:1.5, l:96},
+  {k:'lv3', s:2,   l:128}
+];
+let lv = 1, gl, cvs = $('#gl'), uni = {}, running = false, busy = false, raf = 0, wake = null;
+let t0 = 0, last = 0, accT = 0, accF = 0, totF = 0, totT = 0, mn = Infinity, mx = 0, hist = [], lastReport = '';
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---- i18n ---- */
+let lang = 'zh', lastData = null, stageKey = 'ready';
+try { const s = localStorage.getItem('lang'); lang = s || ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'); } catch (e) {}
+const I18N = {
+  zh: {title:'全域 3D 壓力測試', sub:'新一代 顯示卡壓力與渲染測試', start:'開始測試', ready:'準備就緒', by:'製作：',
+    st0:'偵測 GPU', st1:'編譯著色器', st2:'配置畫面緩衝', st3:'載入負載', nogl:'此瀏覽器或裝置不支援 WebGL2',
+    ms:'影格時間', avg:'平均', min:'最低', max:'最高', fs:'全螢幕', stop:'停止', load:'負載強度',
+    lv0:'輕度', lv1:'標準', lv2:'重度', lv3:'極限',
+    last:(d,n)=>`上次結果：平均 ${d.a} FPS，最低 ${d.n}，最高 ${d.x}（${n}）`},
+  en: {title:'Global 3D Stress Test', sub:'Next-Gen GPU Stress & Rendering Test', start:'Start test', ready:'Ready', by:'Made by ',
+    st0:'Detecting GPU', st1:'Compiling shaders', st2:'Allocating framebuffer', st3:'Loading workload', nogl:'WebGL2 is not supported on this browser or device',
+    ms:'Frame time', avg:'Avg', min:'Min', max:'Max', fs:'Fullscreen', stop:'Stop', load:'Load level',
+    lv0:'Light', lv1:'Standard', lv2:'Heavy', lv3:'Extreme',
+    last:(d,n)=>`Last run: avg ${d.a} FPS, min ${d.n}, max ${d.x} (${n})`}
+};
+function showStage(){ const D = I18N[lang]; $('#stage').textContent = typeof stageKey === 'number' ? D['st' + stageKey] + ' …' : D[stageKey]; }
+function showLast(){ const D = I18N[lang]; $('#last').textContent = lastData ? D.last(lastData, D['lv' + lastData.lv]) : ''; }
+function setLang(l){
+  lang = l === 'en' ? 'en' : 'zh'; const D = I18N[lang];
+  try { localStorage.setItem('lang', lang); } catch (e) {}
+  document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+  document.title = D.title + ' OmniStress 3D';
+  document.querySelectorAll('[data-i]').forEach(e => e.textContent = D[e.dataset.i]);
+  document.querySelectorAll('.seg button').forEach(b => b.textContent = D[b.dataset.k]);
+  document.querySelectorAll('.seg').forEach(s => s.setAttribute('aria-label', D.load));
+  $('#start').setAttribute('aria-label', D.start);
+  $('#lang').textContent = lang === 'zh' ? 'EN' : '中文';
+  showStage(); showLast();
+}
+
+/* ---- segmented control (intro + HUD stay in sync) ---- */
+function buildSeg(el){
+  LV.forEach((v,i) => {
+    const b = document.createElement('button');
+    b.dataset.k = v.k; b.dataset.i = i;
+    b.onclick = () => setLevel(i);
+    el.appendChild(b);
+  });
+}
+function setLevel(i){
+  lv = i;
+  document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.i === lv));
+  if (running){ resize(); t0 = performance.now(); resetStats(); }
+}
+buildSeg($('#segIntro')); buildSeg($('#segHud')); setLevel(1); setLang(lang);
+
+/* ---- WebGL2 ---- */
+const VS = `#version 300 es
+void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.-1.,0.,1.);}`;
+const FS = `#version 300 es
+precision highp float;
+uniform vec2 R;uniform float T;uniform int L;
+out vec4 O;
+float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+float sdT(vec3 p){vec2 q=vec2(length(p.xz)-1.,p.y);return length(q)-.36;}
+vec2 rot(vec2 v,float a){float c=cos(a),s=sin(a);return vec2(c*v.x-s*v.y,s*v.x+c*v.y);}
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*R)/R.y;
+  vec3 ro=vec3(0.,0.,-3.9),rd=normalize(vec3(uv,1.6));
+  vec3 l=normalize(vec3(-.6,.7,-.5));
+  float tilt=.95+.18*sin(T*.35),spin=T*.45;
+  ro.yz=rot(ro.yz,tilt);rd.yz=rot(rd.yz,tilt);l.yz=rot(l.yz,tilt);
+  ro.xz=rot(ro.xz,spin);rd.xz=rot(rd.xz,spin);l.xz=rot(l.xz,spin);
+  const float F=.15;
+  float t=0.;bool hit=false;
+  for(int i=0;i<72;i++){float d=sdT(ro+rd*t)-F;if(d<.002){hit=true;break;}t+=d;if(t>9.)break;}
+  float v=length(uv);
+  vec3 col=vec3(.018,.026,.04)+vec3(.02,.05,.08)*exp(-v*v*3.5);
+  if(hit){
+    float dt=F*2.1/float(L);
+    for(int i=0;i<160;i++){
+      if(i>=L)break;
+      vec3 p=ro+rd*t;float d=sdT(p);
+      float rl=length(p.xz);
+      vec3 n=normalize(vec3(p.x*(1.-1./rl),p.y,p.z*(1.-1./rl)));
+      if(d<0.){col=vec3(.01,.02,.045)*(.4+max(dot(n,l),0.));break;}
+      if(d<F){
+        float h=d/F;
+        float a=atan(p.z,p.x),b=atan(p.y,rl-1.);
+        vec2 g=vec2(a/6.2832*260.,b/6.2832*100.);
+        g+=h*vec2(sin(b*3.+T*.8)*1.6,cos(a*5.-T*.6)*1.2);
+        vec2 cell=floor(g),f=fract(g)-.5;
+        vec2 j=(vec2(h21(cell),h21(cell+7.1))-.5)*.5;
+        float len=.45+.55*h21(cell+3.3);
+        if(h<len){
+          float r=.5*pow(1.-h/len,.7);
+          if(length(f-j)<r){
+            float diff=max(dot(n,l),0.);
+            float rim=pow(1.-max(dot(n,-rd),0.),2.5);
+            float hue=.5+.5*sin(a*2.+T*.4+h*2.);
+            vec3 tip=mix(vec3(.55,.92,1.),vec3(.75,.6,1.),hue*.6);
+            vec3 c=mix(vec3(.03,.09,.22),tip,h);
+            c*=(.22+.95*diff)*(.35+.65*h)+.15;
+            c+=rim*vec3(.2,.6,1.)*h*.8;
+            c*=.8+.4*h21(cell+9.);
+            col=c;break;
+          }
+        }
+      }
+      t+=dt;
+    }
+  }
+  col=pow(col,vec3(.92))+(h21(gl_FragCoord.xy+T)-.5)/255.;
+  O=vec4(col,1.);
+}`;
+
+function sh(type, src){
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+function initGL(){
+  if (gl) return true;
+  gl = cvs.getContext('webgl2', {antialias:false, alpha:false, powerPreference:'high-performance'});
+  if (!gl) return false;
+  try {
+    const p = gl.createProgram();
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, VS));
+    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, FS));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    gl.useProgram(p);
+    ['R','T','L'].forEach(k => uni[k] = gl.getUniformLocation(p, k));
+    const e = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = e ? gl.getParameter(e.UNMASKED_RENDERER_GL) : gl.getParameter(gl.RENDERER);
+    $('#gpu').textContent = name; $('#gpu').title = name;
+    return true;
+  } catch (err) { console.error(err); gl = null; return false; }
+}
+function resize(){
+  const dpr = Math.min(devicePixelRatio || 1, 2), s = LV[lv].s;
+  let w = Math.round(innerWidth * dpr * s), h = Math.round(innerHeight * dpr * s);
+  const m = 4096 / Math.max(w, h);
+  if (m < 1){ w = w * m | 0; h = h * m | 0; }
+  if (cvs.width !== w || cvs.height !== h){ cvs.width = w; cvs.height = h; }
+  gl.viewport(0, 0, w, h);
+  $('#resV').textContent = w + ' × ' + h;
+}
+addEventListener('resize', () => { if (running) resize(); });
+
+/* ---- stats ---- */
+const gctx = $('#graph').getContext('2d');
+function resetStats(){ accT = accF = totF = totT = 0; mn = Infinity; mx = 0; hist = []; ['avg','min','max'].forEach(k => $('#'+k).textContent = '–'); }
+function drawGraph(){
+  const W = 520, H = 112; gctx.clearRect(0, 0, W, H);
+  if (hist.length < 2) return;
+  const top = Math.max(60, ...hist) * 1.15, step = W / 119;
+  gctx.beginPath();
+  hist.forEach((v, i) => { const x = W - (hist.length - 1 - i) * step, y = H - 4 - v / top * (H - 8); i ? gctx.lineTo(x, y) : gctx.moveTo(x, y); });
+  const g = gctx.createLinearGradient(0, 0, W, 0); g.addColorStop(0, 'rgba(138,125,255,.5)'); g.addColorStop(1, '#6fe3ff');
+  gctx.strokeStyle = g; gctx.lineWidth = 2.5; gctx.lineJoin = 'round'; gctx.stroke();
+  gctx.lineTo(W, H); gctx.lineTo(W - (hist.length - 1) * step, H); gctx.closePath();
+  const f = gctx.createLinearGradient(0, 0, 0, H); f.addColorStop(0, 'rgba(111,227,255,.18)'); f.addColorStop(1, 'rgba(111,227,255,0)');
+  gctx.fillStyle = f; gctx.fill();
+}
+
+/* ---- render loop ---- */
+function frame(now){
+  if (!running) return;
+  raf = requestAnimationFrame(frame);
+  const dt = now - last; last = now;
+  const t = (now - t0) / 1000;
+  const e = 1 - Math.pow(1 - Math.min(1, t / 1.8), 3);   // load ramps up after the intro
+  gl.uniform2f(uni.R, cvs.width, cvs.height);
+  gl.uniform1f(uni.T, t);
+  gl.uniform1i(uni.L, Math.round(8 + (LV[lv].l - 8) * e));
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  if (dt > 1000) return;                                  // tab was hidden
+  accT += dt; accF++;
+  if (t > 2){ totT += dt; totF++; }
+  if (accT >= 250){
+    const fps = accF * 1000 / accT;
+    $('#fps').textContent = Math.round(fps);
+    $('#ms').textContent = (accT / accF).toFixed(1) + ' ms';
+    if (t > 2){
+      mn = Math.min(mn, fps); mx = Math.max(mx, fps);
+      $('#avg').textContent = Math.round(totF * 1000 / totT);
+      $('#min').textContent = Math.round(mn); $('#max').textContent = Math.round(mx);
+    }
+    hist.push(fps); if (hist.length > 120) hist.shift(); drawGraph();
+    const s = Math.floor(t); $('#time').textContent = String(s / 60 | 0).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+    accT = accF = 0;
+  }
+}
+function begin(){
+  running = true; resetStats(); resize();
+  document.body.classList.add('run');
+  t0 = last = performance.now();
+  raf = requestAnimationFrame(frame);
+  try { navigator.wakeLock && navigator.wakeLock.request('screen').then(l => wake = l).catch(() => {}); } catch (e) {}
+}
+function end(){
+  if (!running) return;
+  running = false; cancelAnimationFrame(raf);
+  if (totF) lastData = { a: Math.round(totF * 1000 / totT), n: Math.round(mn), x: Math.round(mx), lv };
+  showLast();
+  document.body.classList.remove('run', 'launch');
+  $('#prg').style.strokeDashoffset = 301.6; $('#pct').textContent = '0%'; stageKey = 'ready'; showStage();
+  const f = $('#flash'); f.style.transition = 'none'; f.style.transform = 'scale(0)'; f.style.opacity = 0;
+  if (document.fullscreenElement) document.exitFullscreen();
+  if (wake){ wake.release().catch(() => {}); wake = null; }
+  busy = false;
+}
+
+/* ---- launch sequence ---- */
+
+$('#start').onclick = () => {
+  if (busy) return; busy = true;
+  document.body.classList.add('launch');
+  const dur = reduce ? 1200 : 2800, begun = performance.now();
+  let ok = null;
+  (function tick(now){
+    const x = Math.min(1, (now - begun) / dur);
+    const p = x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+    $('#prg').style.strokeDashoffset = 301.6 * (1 - p);
+    $('#pct').textContent = Math.round(p * 100) + '%';
+    stageKey = Math.min(3, p * 4 | 0); showStage();
+    if (ok === null && p > .3){ ok = initGL(); }
+    if (ok === false){
+      stageKey = 'nogl'; showStage();
+      document.body.classList.remove('launch'); busy = false; return;
+    }
+    if (x < 1) return requestAnimationFrame(tick);
+    fire();
+  })(begun);
+};
+function fire(){
+  const r = $('#start').getBoundingClientRect(), f = $('#flash');
+  f.style.left = (r.left + r.width / 2) + 'px'; f.style.top = (r.top + r.height / 2) + 'px';
+  f.style.transition = 'transform .7s cubic-bezier(.7,0,.3,1), opacity .15s';
+  requestAnimationFrame(() => { f.style.transform = 'scale(110)'; f.style.opacity = 1; });
+  setTimeout(() => {
+    begin();
+    f.style.transition = 'opacity .9s ease-out'; f.style.opacity = 0;
+  }, reduce ? 50 : 650);
+}
+
+/* ---- grid cell reveal ---- */
+const cf = $('#cellfx'), cx = cf.getContext('2d'), CS = 56, cells = new Map();
+let cw = 0, ch = 0, cfRaf = 0;
+function cfSize(){ const d = Math.min(devicePixelRatio || 1, 2); cw = innerWidth; ch = innerHeight; cf.width = cw * d; cf.height = ch * d; cx.setTransform(d, 0, 0, d, 0, 0); }
+const GR = 170;                                   // glow radius (px)
+let gx = 0, gy = 0, gtx = 0, gty = 0, gOn = false, gLast = 0;
+function cfDraw(now){
+  const dt = Math.min(50, now - gLast || 16); gLast = now;
+  if (running) gOn = false;
+  cx.clearRect(0, 0, cw, ch);
+  if (gOn){
+    const f = Math.min(1, dt * .012);               // pointer glides instead of snapping
+    gx += (gtx - gx) * f; gy += (gty - gy) * f;
+    const g = cx.createRadialGradient(gx, gy, 0, gx, gy, GR);
+    g.addColorStop(0, 'rgba(111,227,255,.10)'); g.addColorStop(1, 'rgba(111,227,255,0)');
+    cx.fillStyle = g; cx.fillRect(gx - GR, gy - GR, GR * 2, GR * 2);
+    for (let i = Math.floor((gx - GR) / CS); i <= Math.floor((gx + GR) / CS); i++){
+      for (let j = Math.floor((gy - GR) / CS); j <= Math.floor((gy + GR) / CS); j++){
+        const d = Math.hypot((i + .5) * CS - gx, (j + .5) * CS - gy);
+        if (d >= GR) continue;
+        const v = Math.pow(1 - d / GR, 1.6), key = i + ',' + j;
+        if (v > (cells.get(key) || 0)) cells.set(key, v);
+      }
+    }
+  }
+  const keep = Math.exp(-dt / 380);                 // smooth fade-out of the trail
+  cells.forEach((a, k) => {
+    a *= keep;
+    if (a < .02){ cells.delete(k); return; }
+    cells.set(k, a);
+    const [i, j] = k.split(','), x = i * CS, y = j * CS;
+    cx.fillStyle = `rgba(111,227,255,${a * .09})`; cx.fillRect(x, y, CS, CS);
+    cx.strokeStyle = `rgba(111,227,255,${a * .38})`; cx.lineWidth = 1; cx.strokeRect(x + .5, y + .5, CS - 1, CS - 1);
+  });
+  cfRaf = (gOn || cells.size) ? requestAnimationFrame(cfDraw) : 0;
+}
+$('#intro').addEventListener('pointermove', e => {
+  if (running) return;
+  gtx = e.clientX; gty = e.clientY;
+  if (!gOn){ gx = gtx; gy = gty; gOn = true; gLast = performance.now(); }
+  if (!cfRaf) cfRaf = requestAnimationFrame(cfDraw);
+});
+$('#intro').addEventListener('pointerleave', () => { gOn = false; });
+addEventListener('resize', cfSize); cfSize();
+
+/* ---- controls ---- */
+$('#lang').onclick = () => setLang(lang === 'zh' ? 'en' : 'zh');
+$('#stop').onclick = end;
+$('#fsBtn').onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+addEventListener('keydown', e => {
+  if (e.key === 'Escape') end();
+  if ((e.key === 'f' || e.key === 'F') && running) $('#fsBtn').click();
+});
+</script>
+</body>
+</html>
